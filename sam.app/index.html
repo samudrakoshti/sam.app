@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Web App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .screen {
+      padding: 20px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    button {
+      padding: 10px 15px;
+      margin: 8px;
+      font-size: 16px;
+    }
+
+    input {
+      padding: 10px;
+      margin: 8px;
+      width: 80%;
+    }
+
+    .light {
+      background: #ffffff;
+      color: #000000;
+    }
+
+    .dark {
+      background: #000000;
+      color: #ffffff;
+    }
+
+    .eye {
+      background: #f5deb3;
+      color: #000000;
+    }
+  </style>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+
+<body class="light">
+
+  <div id="permissionScreen" class="screen">
+    <h2>Permissions Required</h2>
+    <p>This app needs Camera & Storage access to scan and save QR codes.</p>
+    <button onclick="acceptPermissions()">Continue</button>
+  </div>
+
+  <div id="loginScreen" class="screen hidden">
+    <h2>Login</h2>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="homeScreen" class="screen hidden">
+    <h2>QR App</h2>
+    <button onclick="openScanner()">Scan QR</button>
+    <button onclick="openGenerator()">Generate QR</button>
+    <button onclick="openSaved()">Saved Data</button>
+    <button onclick="openSettings()">Settings</button>
+  </div>
+
+  <div id="scannerScreen" class="screen hidden">
+    <div id="reader"></div>
+    <button onclick="goHome()">Back</button>
+  </div>
+
+  <div id="generatorScreen" class="screen hidden">
+    <input type="text" id="qrText" placeholder="Enter text or URL">
+    <button onclick="generateQR()">Generate</button>
+    <div id="qrResult"></div>
+    <button onclick="goHome()">Back</button>
+  </div>
+
+  <div id="savedScreen" class="screen hidden">
+    <h3>Saved Scans</h3>
+    <ul id="savedList"></ul>
+    <button onclick="clearSaved()">Clear All</button>
+    <button onclick="goHome()">Back</button>
+  </div>
+
+  <div id="settingsScreen" class="screen hidden">
+    <h3>Settings</h3>
+    <button onclick="setTheme('light')">Light Mode</button>
+    <button onclick="setTheme('dark')">Dark Mode</button>
+    <button onclick="setTheme('eye')">Eye Protection</button>
+    <button onclick="logout()">Logout</button>
+    <button onclick="goHome()">Back</button>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let html5Qr;
+
+    function show(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function acceptPermissions() {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then(stream => {
+            stream.getTracks().forEach(track => track.stop());
+            show('loginScreen');
+          })
+          .catch(err => {
+            alert("Camera permission is recommended to scan QR codes.");
+            show('loginScreen');
+          });
+      } else {
+        show('loginScreen');
+      }
+    }
+
+    function login() {
+      const email = document.getElementById('email').value;
+      if (!email) return alert("Enter email");
+      currentUser = email;
+      show('homeScreen');
+    }
+
+    function logout() {
+      currentUser = null;
+      show('loginScreen');
+    }
+
+    function goHome() {
+      if (html5Qr) html5Qr.stop();
+      show('homeScreen');
+    }
+
+    function openScanner() {
+      show('scannerScreen');
+      html5Qr = new Html5Qrcode("reader");
+      html5Qr.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        qrText => {
+          saveScan(qrText);
+          alert("Scanned: " + qrText);
+          goHome();
+        }
+      ).catch(err => {
+        alert("Camera start failed!");
+      });
+    }
+
+    function openGenerator() {
+      show('generatorScreen');
+    }
+
+    function generateQR() {
+      const text = document.getElementById('qrText').value;
+      document.getElementById('qrResult').innerHTML =
+        `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(text)}">`;
+    }
+
+    function saveScan(data) {
+      let saved = JSON.parse(localStorage.getItem('scans') || '[]');
+      saved.push({ data, time: new Date().toLocaleString() });
+      localStorage.setItem('scans', JSON.stringify(saved));
+    }
+
+    function openSaved() {
+      show('savedScreen');
+      const list = document.getElementById('savedList');
+      list.innerHTML = "";
+      let saved = JSON.parse(localStorage.getItem('scans') || '[]');
+      saved.forEach(s => {
+        let li = document.createElement('li');
+        li.textContent = `${s.data} (${s.time})`;
+        list.appendChild(li);
+      });
+    }
+
+    function clearSaved() {
+      localStorage.removeItem('scans');
+      openSaved();
+    }
+
+    function openSettings() {
+      show('settingsScreen');
+    }
+
+    function setTheme(theme) {
+      document.body.className = theme;
+    }
+  </script>
+
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+    // TODO: Add SDKs for Firebase products that you want to use
+    // https://firebase.google.com/docs/web/setup#available-libraries
+
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+      apiKey: "AIzaSyB4Cwma9n7JHIDj7s37HIfOsPx1UFb7Qn8",
+      authDomain: "qrapp-f2aaa.firebaseapp.com",
+      databaseURL: "https://qrapp-f2aaa-default-rtdb.firebaseio.com",
+      projectId: "qrapp-f2aaa",
+      storageBucket: "qrapp-f2aaa.firebasestorage.app",
+      messagingSenderId: "558109904771",
+      appId: "1:558109904771:web:0b3c7c2d0301e3ce8930b6",
+      measurementId: "G-C0MJE2T2V0"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+  </script>
+</body>
+
+</html>
